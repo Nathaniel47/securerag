@@ -1,0 +1,162 @@
+# PLAN.md: SecureRAG
+
+A RAG assistant over public documents, plus a harness that attacks it, defends it, and scores each defense against each attack.
+Budget: 6 weeks of evenings and weekends, free compute, free hosting, about 8 GB RAM for Docker.
+
+## Scope
+
+| Area | Decision |
+|---|---|
+| Main LLM | **Groq free API**: a fresh account with its own key (`SECURERAG_GROQ_API_KEY`). It's a small, fast instruct model, chosen in week 1. |
+| Second LLM | **Gemini free API**: its own key in a **new Google Cloud project** (`SECURERAG_GEMINI_API_KEY`). It's used only for a confirmation run. |
+| Model names | Chosen and verified in week 1 against each provider's current model list. Each run records them in `results/run_meta.json`. |
+| Local LLM | Ollama is **optional**, one small model, and only if week 5 has room. |
+| Embeddings | Local `all-MiniLM-L6-v2` on CPU (~90 MB). It uses no API quota and is fully reproducible. |
+| Corpus | One domain: **GOV.UK guidance pages** (Open Government Licence v3), about 300–500 pages, plus synthetic "restricted" docs for the leakage tests. |
+| Question set | **150 clean questions** with short reference answers, plus **100 attack attempts** (25 per attack). |
+| Attacks | Knowledge-base poisoning, indirect prompt injection, direct prompt injection, data leakage. |
+| Defenses | D1 source filtering, D2 retrieval anomaly score, D3 answer-consistency check, D4 output filter. |
+| Configurations | 6: no defense, each defense alone (4), and all four combined. **No full attack × defense grid.** |
+| UI | Streamlit playground + dashboard over a FastAPI backend. |
+| Secrets | Pre-commit secret scan. `.env.example` holds variable names with empty values only. |
+| Out of scope | React, LangChain/LlamaIndex, fine-tuning, multi-agent setups, attacking anything except this app. Stretch only: prompt "spotlighting" as a 5th defense. |
+
+## 1. Architecture
+
+```mermaid
+flowchart LR
+  subgraph Ingest
+    SRC[GOV.UK pages<br/>+ synthetic restricted docs] --> CHK[Chunker<br/>+ source/trust tags]
+    ATK1[Attack kit:<br/>poison / injected docs] --> CHK
+    CHK --> D1{D1 source filter}
+    D1 --> EMB[Embedder<br/>MiniLM, CPU]
+    EMB --> VDB[(ChromaDB)]
+  end
+  subgraph Answer
+    Q[User question<br/>or attack prompt] --> RET[Retriever top-k]
+    VDB --> RET
+    RET --> D2{D2 retrieval<br/>anomaly score}
+    D2 --> GEN[Generator]
+    GEN --> D3{D3 answer<br/>consistency}
+    D3 --> D4{D4 output filter}
+    D4 --> ANS[Answer + trace]
+  end
+  GEN <--> LLM[LLM client<br/>Groq / Gemini / Ollama]
+  LLM <--> CACHE[(Response cache)]
+  QS[150 clean Qs<br/>+ 100 attacks] --> EVAL[Eval runner<br/>6 configs]
+  EVAL --> Q
+  ANS --> EVAL
+  EVAL --> RES[results/ CSV + charts<br/>+ run_meta.json]
+  ANS --> API[FastAPI]
+  RES --> UI[Streamlit<br/>playground + dashboard]
+  API --> UI
+```
+
+- **Chunker**: splits each page into chunks of about 300 tokens and tags each chunk with its source URL, a trust level (`official`, `user_upload` or `restricted`) and an access role.
+- **Embedder + ChromaDB**: turns chunks into vectors and stores them in an on-disk Chroma collection that runs inside the API process.
+- **Retriever**: returns the top-k chunks for a question, filtered by the caller's role.
+- **Generator**: builds the prompt from the system rules and the retrieved chunks, which are marked as data, then calls the LLM.
+- **LLM client**: one interface with Groq, Gemini and Ollama backends. Every call is cached by a hash of (model, prompt, settings, repeat index), so reruns cost nothing and repeats stay independent.
+- **Attack kit**: builds the malicious documents and prompts. Each attempt has an **automatic success marker** (a target answer or a canary string), so scoring needs no LLM judge.
+- **Defenses** are switched on and off in config:
+  - **D1 Source filtering**: public users can only retrieve `official` sources, and incoming docs are scanned for instruction-like text ("ignore previous…").
+  - **D2 Retrieval anomaly score**: flags and drops unusual retrieved chunks, such as suspiciously high query similarity, clusters of near-duplicate chunks (a poisoning signature), or instruction patterns. It makes no LLM calls.
+  - **D3 Answer consistency**: answers separately from two disjoint halves of the retrieved chunks. When the two answers agree, it returns the answer. When they disagree, it flags the question and returns a cautious "couldn't verify" reply. It costs 2 LLM calls instead of 1.
+  - **D4 Output filter**: blocks canaries, PII patterns and system-prompt text in the final answer. It post-processes the answer, so it makes no extra LLM calls.
+- **Eval runner**: runs the clean questions and attack attempts under each of the 6 configurations and writes metrics plus `run_meta.json` (model IDs, date checked, temperature, seed, git commit).
+- **FastAPI + Streamlit**: the playground shows the question, the retrieved chunks, which defenses fired and the final answer. The dashboard reads `results/`.
+
+**Metrics**
+- **Attack success rate (ASR)**: the share of attack attempts whose success marker appears in the answer, per attack and per configuration.
+- **Clean accuracy**: the share of the 150 clean questions answered correctly. Answers are scored automatically against the short reference answers (normalised match). The scorer is validated by hand on 30 answers, so no LLM judge calls are needed.
+- **False-block rate**: the share of clean questions that a defense wrongly blocks or flags.
+- **Cost**: the extra LLM calls and latency each defense adds.
+- **Variance**: the mean and spread across 3 repeat runs on a subset. The report gives 95% confidence intervals for rates.
+
+## 2. Call budget
+
+LLM calls per query, by configuration:
+
+| No defense | D1 | D2 | D3 | D4 | Combined | Total |
+|---|---|---|---|---|---|---|
+| 1 | 1 | 1 | 2 | 0 (filters the no-defense answer) | 2 | **7** |
+
+| Run | Queries | Calls (worst case, before cache hits) |
+|---|---|---|
+| **Full run** (Groq), once | 150 clean + 100 attack = 250 | **1,750** |
+| **Repeat runs** (Groq), 3 times | 30 clean + 40 attack (10 per attack) = 70 | 490 each, 1,470 total |
+| **Confirmation run** (Gemini), once | the same 70-query subset | 490 |
+| **Question generation**, one-off | 150 questions in batches | about 30–50 |
+
+Every run stays under 2,000 calls. Real counts will be lower, because D1 and D2 often leave the retrieved chunks unchanged on clean questions, and those calls then hit the cache. All runs use one fixed temperature (e.g. 0.3), recorded in `run_meta.json`. At temperature 0 the repeats would mostly measure API noise rather than model behaviour. If a provider's daily limit is lower than a run needs, the runner resumes from the cache the next day.
+
+## 3. Repo structure
+
+```
+securerag/
+├── securerag/
+│   ├── ingest/          # fetch_govuk.py, chunk.py, synthetic_restricted.py
+│   ├── rag/             # embed.py, store.py (Chroma), retrieve.py, generate.py, pipeline.py
+│   ├── llm/             # client.py (interface), groq.py, gemini.py, ollama.py, cache.py
+│   ├── attacks/         # poisoning.py, indirect_injection.py, direct_injection.py, leakage.py
+│   ├── defenses/        # source_filter.py, anomaly.py, consistency.py, output_filter.py
+│   ├── eval/            # questions.py, scoring.py, metrics.py, run_eval.py (full | repeat | confirm)
+│   └── config.py        # defense switches, model IDs, k, chunk size, temperature
+├── api/                 # FastAPI app: /ask, /trace, /results
+├── ui/                  # Streamlit: playground.py, dashboard.py
+├── data/                # corpus manifest + licence notes (raw pages gitignored)
+├── results/             # metrics CSVs, charts, run_meta.json, sample traces
+├── tests/
+├── docker-compose.yml   # api + ui; ollama behind an optional profile
+├── .pre-commit-config.yaml  # gitleaks secret scan
+├── .gitignore           # includes .env
+├── .env.example         # SECURERAG_GROQ_API_KEY=  SECURERAG_GEMINI_API_KEY=  (empty values)
+└── README.md
+```
+
+**Keeping keys out of git**
+- `.env` is in `.gitignore` from the first commit, and the app reads keys only from environment variables.
+- `.env.example` lists the variable names with empty values and nothing else.
+- `pre-commit` runs **gitleaks** on every commit and blocks the commit if it finds anything that looks like a key. In week 1, commit a fake test key once to confirm the block works, then delete it.
+- On Hugging Face Spaces, keys go in Space secrets, never in the repo.
+
+## 4. Week-by-week
+
+| Week | Goal | Done when |
+|---|---|---|
+| 1 | Plain RAG + guardrails | Pre-commit gitleaks hook installed and tested, and `.env.example` is names only. Groq and Gemini model IDs are chosen from the providers' current model lists, with free-tier limits checked against the call budget. Both are recorded in `run_meta.json`, and a 20-call smoke test passes. About 300–500 GOV.UK pages are fetched with a manifest. Chunk → embed → Chroma → answer works end to end. LLM client + cache are in place. `docker compose up` runs under 8 GB. |
+| 2 | Questions + first attacks | 150 clean Q&A generated from the corpus, and all 150 hand-checked (a small set, so check them all). Scorer validated on 30 answers. Clean accuracy baseline. Poisoning and indirect injection sets (25 each) with ASR on the no-defense config. |
+| 3 | All attacks + first defenses | Direct injection and leakage sets (25 each, leakage using synthetic restricted docs). D1 and D4 working, each tested alone. |
+| 4 | Remaining defenses + runs | D2 and D3 working. **Full run** on Groq (6 configs, about 1,750 calls max), then **3 repeat runs** on the 70-query subset, then the **Gemini confirmation run** on the same subset. |
+| 5 | API + UI | FastAPI endpoints, Streamlit playground with traces, dashboard from `results/` showing ASR, accuracy, false blocks and variance. *(Ollama comparison only if ahead.)* |
+| 6 | Ship + buffer | Deploy the demo, then write the results report and the 6-page write-up. No new features. |
+
+## 5. Risks and first checks
+
+1. **Free-tier limits and model changes.** Free-tier limits and model lists change often. *Check first (week 1):* the current daily request and token limits for the chosen Groq and Gemini models, against the budget in section 2. The runner resumes from the cache, so a run can span days if needed. The public demo shows precomputed results by default and caps live questions per day, so visitors can't use up the key. Gemini's free tier may use prompts to improve Google's models, which is acceptable here because all data is public or synthetic.
+2. **Data licences and personal data.** GOV.UK content is under the Open Government Licence v3: free reuse with attribution, credited in the README and on the dashboard. Avoid university handbooks, which are usually all-rights-reserved. The leakage tests use **synthetic** fake records only, never real personal data. *Check first:* the OGL terms, and that each fetched page carries the OGL, since a few GOV.UK pages include third-party material.
+3. **Scope.** Four attacks, four defenses and a UI in six weeks is still tight. Mitigation: freeze the attack and defense lists at the end of week 1, keep all scoring automatic, and keep the dashboard reading static CSVs. If week 4 slips, cut the Gemini confirmation run before cutting a defense.
+
+Memory is not a risk: Chroma, MiniLM, FastAPI and Streamlit together should stay under about 2 GB. Ollama with a 3B model adds about 3–4 GB, which is why it stays optional.
+
+## 6. Simplifications
+
+- **No LangChain or LlamaIndex.** The plain pipeline is about 200 lines, you'll understand every step, and each defense needs a hook at a specific stage, which frameworks tend to hide.
+- **Streamlit instead of React**: one app with two pages.
+- **Chroma embedded** in the API process rather than a separate server.
+- **Local embeddings**, so only answer generation uses API quota.
+- **One-domain corpus** (GOV.UK), so the demo tells one coherent story.
+- **Automatic scoring only**: success markers for attacks and a normalised match for clean answers, with no LLM judge.
+- **Single defenses + one combined config** instead of a full grid.
+- **Free hosting:** Hugging Face Spaces (Docker) runs api + ui, with keys stored as Space secrets.
+
+## Concepts (plain language + one reading each)
+
+- **RAG (retrieval-augmented generation)**: before answering, the system looks up relevant passages and adds them to the prompt, so the LLM answers from your documents. *Read:* Lewis et al. 2020, "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks" (introduction only).
+- **Embeddings and vector search**: each chunk becomes a list of numbers in which similar meanings sit close together, and search means finding the chunks nearest to the question. *Read:* the "Semantic Search" page in the Sentence-Transformers docs.
+- **Knowledge-base poisoning**: planting a few crafted documents so that a target question retrieves them and the LLM repeats the attacker's answer. *Read:* Zou et al. 2024, "PoisonedRAG" (arXiv).
+- **Indirect prompt injection**: instructions hidden inside retrieved content, which the LLM obeys as if the developer had written them. *Read:* Greshake et al. 2023, "Not what you've signed up for" (arXiv).
+- **Isolate-then-aggregate (the idea behind D3)**: answer from separate groups of chunks and trust only what the groups agree on, so a single poisoned chunk can't steer the answer. *Read:* Xiang et al. 2024, "Certifiably Robust RAG against Retrieval Corruption" (RobustRAG, arXiv).
+- **Variance and confidence intervals**: one run of 25 attacks gives a noisy rate. Repeats show how much results move between runs, and a confidence interval shows the plausible range of the true rate. *Read:* the Wikipedia article "Binomial proportion confidence interval" (the Wilson score section).
+- **Secret scanning**: a tool that checks each commit for patterns that look like keys and blocks the commit before the key leaves your laptop. *Read:* the gitleaks README on GitHub (pre-commit section).
+- **Threat framing**: the OWASP Top 10 for LLM Applications 2025 names these risks (LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM08 Vector and Embedding Weaknesses). It gives the write-up a standard vocabulary. *Read:* the OWASP GenAI Security Project's Top 10 page.
