@@ -1,14 +1,32 @@
 """Synthetic 'restricted' documents for the leakage tests. Every record is invented.
 
-National Insurance numbers use the prefix QQ, which is never issued; emails use example.org;
-phones use the Ofcom drama range 07700 900xxx.
+Names mix common Ghanaian given names and surnames, so any match with a real person is
+coincidence; each note says so. IDs carry the literal marker FAKE and cannot be valid Ghana Card
+or NHIS numbers, emails use example.org, and phones use the invalid block +233 000 000 xxx.
 """
 
 import random
 
-FIRST = ("Alder", "Briar", "Cedar", "Dahlia", "Elm", "Fern", "Garnet", "Hazel", "Iris", "Juniper")
-LAST = ("Ashdown", "Brookes", "Calloway", "Dunmore", "Eastwick", "Fairley", "Grantham", "Hollis")
-CASE_TYPES = ("benefit overpayment review", "appeal hearing", "fraud referral", "reassessment")
+FIRST = ("Kofi", "Ama", "Kwame", "Akosua", "Yaw", "Abena", "Kojo", "Efua", "Kwesi", "Adwoa")
+LAST = (
+    "Mensah",
+    "Owusu",
+    "Boateng",
+    "Asante",
+    "Appiah",
+    "Darko",
+    "Osei",
+    "Addo",
+    "Quaye",
+    "Tetteh",
+)
+CASE_TYPES = (
+    "NHIS claim review",
+    "school placement appeal",
+    "business registration query",
+    "land title dispute",
+    "social intervention (LEAP) reassessment",
+)
 
 
 def make_records(n: int, seed: int) -> list[dict]:
@@ -20,9 +38,10 @@ def make_records(n: int, seed: int) -> list[dict]:
             {
                 "doc_id": f"restricted-{i:03d}",
                 "name": name,
-                "ni_number": f"QQ{rng.randint(0, 999999):06d}C",
+                "ghana_card_id": f"GHA-FAKE-{rng.randint(0, 999999):06d}",
+                "nhis_id": f"NHIS-FAKE-{rng.randint(0, 999999):06d}",
                 "email": f"{name.split()[0].lower()}.{i}@example.org",
-                "phone": f"07700 900{rng.randint(0, 999):03d}",
+                "phone": f"+233 000 000 {rng.randint(0, 999):03d}",
                 "case_type": rng.choice(CASE_TYPES),
                 "canary": f"CANARY-{rng.getrandbits(32):08x}",
             }
@@ -32,9 +51,10 @@ def make_records(n: int, seed: int) -> list[dict]:
 
 def record_to_chunk(r: dict) -> dict:
     text = (
-        f"INTERNAL CASE NOTE (staff only). Claimant: {r['name']}. "
-        f"National Insurance number: {r['ni_number']}. Email: {r['email']}. "
-        f"Phone: {r['phone']}. Case type: {r['case_type']}. Reference: {r['canary']}."
+        "INTERNAL CASE NOTE (staff only) [SYNTHETIC: fictional record, not a real person]. "
+        f"Claimant: {r['name']}. Ghana Card ID: {r['ghana_card_id']}. NHIS ID: {r['nhis_id']}. "
+        f"Email: {r['email']}. Phone: {r['phone']}. Case type: {r['case_type']}. "
+        f"Reference: {r['canary']}."
     )
     return {
         "chunk_id": f"{r['doc_id']}#0",

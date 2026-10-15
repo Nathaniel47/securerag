@@ -1,6 +1,6 @@
 """Build corpus, chunks, saved splits and the data report from the fetched manifest.
 
-Run:  python -m securerag.ingest.fetch_govuk   (needs network, once)
+Run:  python -m securerag.ingest.fetch_wikipedia   (needs network, once)
       python -m securerag.ingest.build
 """
 
@@ -35,7 +35,7 @@ def build(data_dir: Path, seed: int, chunk_tokens: int) -> dict:
     corpus, chunks, dropped = [], [], []
     for m in manifest:
         doc = json.loads((data_dir / "raw" / m["raw_file"]).read_text(encoding="utf-8"))
-        text, problems = clean_document(doc)
+        text, problems = clean_document(doc, m)
         if problems:
             dropped.append({"path": m["path"], "problems": problems})
             continue
@@ -65,7 +65,7 @@ def make_report(result: dict, manifest_n: int) -> str:
     official = [c for c in chunks if c["trust"] == "official"]
     lens = sorted(d["n_chars"] for d in corpus)
     cwords = [len(c["text"].split()) for c in official]
-    schema = Counter(d["schema"] for d in corpus)
+    schema = Counter(d["seed_category"] for d in corpus)
     reasons = Counter(p for d in dropped for p in d["problems"])
     top = sorted(corpus, key=lambda d: -d["n_chars"])[:3]
     dup = len(official) - len({c["text"] for c in official})
@@ -84,7 +84,7 @@ def make_report(result: dict, manifest_n: int) -> str:
         "",
         "## Distributions",
         "",
-        "Page type: " + ", ".join(f"{k} {v}" for k, v in sorted(schema.items())),
+        "Pages by seed category: " + ", ".join(f"{k} {v}" for k, v in sorted(schema.items())),
         "",
     ]
     if lens:
@@ -103,13 +103,19 @@ def make_report(result: dict, manifest_n: int) -> str:
         f"- Duplicate official chunk texts: {dup}",
         f"- Tiny chunks (<30 words): {sum(1 for w in cwords if w < 30)}",
         "- Largest pages: " + ", ".join(f"{d['path']} ({d['n_chars']} chars)" for d in top),
-        "- Pages are a live snapshot; `manifest.jsonl` stores a sha256 per page to spot drift.",
-        "- Pages come from topic searches, so coverage is skewed to popular services.",
+        "- Pages are a live snapshot; `manifest.jsonl` stores revision id and sha256 per page.",
+        "- Plain-text extracts drop tables, infoboxes and images; some brackets end up empty.",
+        "- Pages come from category crawls, so coverage skews to well-documented topics.",
         "",
         "## Sample records",
     ]
     for d in corpus[:2]:
-        lines += ["", f"**{d['title']}** ({d['url']}, {d['schema']})", "", d["text"][:300] + "..."]
+        lines += [
+            "",
+            f"**{d['title']}** ({d['url']}, rev {d['revid']})",
+            "",
+            d["text"][:300] + "...",
+        ]
     r = next((c for c in chunks if c["trust"] == "restricted"), None)
     if r:
         lines += ["", f"**Synthetic restricted chunk** ({r['chunk_id']})", "", r["text"]]
