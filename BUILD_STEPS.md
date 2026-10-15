@@ -9,7 +9,7 @@ Rules for Claude when running a step:
 
 Step 1 (Kickoff & plan) happens in the Portfolio Builds Project; its output is PLAN.md.
 
-## - [ ] Step 2: Repo setup
+## - [x] Step 2: Repo setup
 
 Read PLAN.md and CLAUDE.md first, and follow them. If anything below conflicts with PLAN.md, PLAN.md wins. Commit and push after each completed task.
 

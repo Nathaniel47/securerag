@@ -1,0 +1,4 @@
+# Dev and CI dependencies. Tests so far need nothing heavy; CI installs only this file.
+pytest>=8.0
+ruff>=0.5
+pre-commit>=3.7
