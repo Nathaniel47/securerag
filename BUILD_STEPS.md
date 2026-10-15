@@ -23,7 +23,7 @@ Create the files directly, run the tests to confirm the setup works, then commit
 
 Don't explain steps in chat. Put plain-English explanations of what you built and why it matters in LEARNING.md. In chat, give me only a short summary at the end: what was built, key numbers, and any decision you need from me.
 
-## - [ ] Step 3: Data pipeline
+## - [x] Step 3: Data pipeline
 
 Read PLAN.md and CLAUDE.md first, and follow them. If anything below conflicts with PLAN.md, PLAN.md wins. Commit and push after each completed task.
 

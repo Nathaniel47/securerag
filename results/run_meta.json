@@ -1,0 +1,20 @@
+{
+  "models_checked_on": "2026-10-15",
+  "groq": {
+    "model": "llama-3.1-8b-instant",
+    "status": "production (console.groq.com/docs/models)",
+    "why": "small, fast, plain instruct model; gpt-oss-20b is a reasoning model and would add hidden reasoning tokens",
+    "free_limits": "UNVERIFIED: the rate-limits page has no free-plan row for this model; check console.groq.com/settings/limits",
+    "fallback": "openai/gpt-oss-20b (free: 30 RPM, 1K RPD, 8K TPM, 200K TPD)"
+  },
+  "gemini": {
+    "model": "gemini-3.5-flash-lite",
+    "status": "stable (ai.google.dev/gemini-api/docs/models, updated 2026-10-13)",
+    "why": "cheapest stable model the page recommends for new projects; gemini-2.0-* are shut down",
+    "free_limits": "UNVERIFIED: Google publishes no per-model table; see aistudio.google.com/rate-limit"
+  },
+  "temperature": 0.3,
+  "seed": 42,
+  "git_commit": "recorded at run time by the eval runner",
+  "notes": "Model IDs and limits were read from provider docs, not from a live API call (no keys used yet)."
+}
