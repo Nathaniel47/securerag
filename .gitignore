@@ -24,3 +24,5 @@ llm_cache/
 .idea/
 .DS_Store
 Thumbs.db
+data/chunks.jsonl
+data/corpus.jsonl

@@ -13,9 +13,9 @@ class Config:
     temperature: float = 0.3
     seed: int = 42
     embedding_model: str = "all-MiniLM-L6-v2"
-    # Model IDs are chosen and verified in week 1 (see PLAN.md); recorded in results/run_meta.json.
-    groq_model: str = ""
-    gemini_model: str = ""
+    # Chosen 2026-10-15 from the providers' model lists; recorded in results/run_meta.json.
+    groq_model: str = "llama-3.1-8b-instant"
+    gemini_model: str = "gemini-3.5-flash-lite"
     defenses: frozenset[str] = field(default_factory=frozenset)
 
     def with_defenses(self, *names: str) -> "Config":
