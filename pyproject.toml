@@ -1,7 +1,7 @@
 [project]
 name = "securerag"
 version = "0.1.0"
-description = "RAG security testbed: attacks, defenses and automatic scoring over GOV.UK guidance"
+description = "RAG security testbed: attacks, defenses and automatic scoring over Ghana-related Wikipedia articles"
 requires-python = ">=3.11"
 
 [tool.setuptools]

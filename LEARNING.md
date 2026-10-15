@@ -13,15 +13,17 @@ Plain-English notes on what was built and why it matters.
 
 How to check: `pytest` and `ruff check .` should both pass.
 
-## Step 3: Data pipeline
+## Step 3: Data pipeline (redone for a Ghana corpus)
 
-- **Fetch** (`ingest/fetch_govuk.py`): searches GOV.UK for 46 broad topics, shuffles the candidate pages with a fixed seed, and keeps the first 420 that are plain guidance (answer, guide, detailed guide). It saves raw JSON locally and writes `data/manifest.jsonl` with a sha256 per page. Why: GOV.UK changes over time, so the hash lets you see whether a later re-fetch differs from the corpus your results came from.
-- **Clean** (`ingest/clean.py`): turns the HTML into plain text, keeping headings and bullet points, and drops pages that are too short, withdrawn, or mention third-party/copyright material (the OGL covers most but not all GOV.UK content).
-- **Chunk** (`ingest/chunk.py`): splits pages into pieces of about 300 tokens (approximated as 225 words) along paragraph boundaries. Each chunk is tagged with source URL, `trust` and `role`. Those two tags are what defense D1 (source filtering) and the role-based retrieval filter will use later.
-- **Synthetic restricted records** (`ingest/synthetic_restricted.py`): 40 invented staff-only case notes, each with a unique canary string. If a canary shows up in an answer to a public user, leakage is proven automatically with no judge. Fake NI numbers use the never-issued `QQ` prefix so they cannot match a real person.
-- **Splits** (`data/splits.json`): 200 pages are set aside as the source for the 150 clean questions; the rest are the "other" pool. Saving the split with a seed means week 2's question generation is reproducible.
-- **Report** (`results/data_report.md`): counts, distributions, samples and quality problems (very long pages, tiny chunks, duplicates).
-- **Deviation noted**: BUILD_STEPS mentions a question set of 300+, but PLAN.md says 150 clean questions plus 100 attacks, generated in week 2 with hand-checking. PLAN.md wins, so questions are not generated in this step.
-- **Not committed**: `data/raw`, `corpus.jsonl` and `chunks.jsonl` are git-ignored (several MB each, and the pre-commit large-file check would block them). Rebuild them with the two commands in the README.
+- **Corpus change**: the owner switched the corpus from GOV.UK to Ghana-related Wikipedia articles (about 420 on government, health, education, regions, economy, law and institutions). PLAN.md was updated to match. Wikipedia text is CC BY-SA 4.0: reuse needs attribution and the derived corpus must be shared under the same licence, which is recorded in the README.
+- **Fetch** (`ingest/fetch_wikipedia.py`): walks 34 Wikipedia categories (plus one level of subcategories), shuffles the candidates with a fixed seed, and keeps articles until 420 pass the quality checks. 971 candidates were rejected (off-topic, stubs, disambiguation). The manifest stores title, URL, revision id, hash and licence, which is exactly what attribution and drift checks need.
+- **Why a relevance filter**: category trees leak. "Law of Ghana" contains international treaties that mention Ghana once. Requiring at least 5 mentions of Ghana removed them; without it a retrieval test would be answering questions about whales.
+- **Clean** (`ingest/clean.py`): converts `== Heading ==` markup to `## Heading`, drops References/External links style sections, and removes empty brackets left where Wikipedia strips pronunciations.
+- **Chunk** (`ingest/chunk.py`): about 300 tokens (approximated as 225 words) along paragraph boundaries; a tiny leftover is folded into the previous chunk. Each chunk carries source URL, `trust` and `role`. In this corpus `trust: official` means "the trusted base knowledge base", not "government-authored"; Wikipedia is editable by anyone, which is itself a realistic poisoning risk worth stating in the write-up.
+- **Synthetic restricted records**: 40 invented staff-only case notes with Ghanaian-style names, `GHA-FAKE-...` and `NHIS-FAKE-...` IDs and a unique canary string. A canary in a public answer is automatic proof of leakage. Each note is labelled SYNTHETIC.
+- **LLM client** (`llm/`): a cache in front of a pluggable backend (Groq now). The cache key includes model, messages, temperature, seed and a repeat index, so reruns are free and repeats stay independent. It was needed now because question generation must go through it.
+- **Questions** (`eval/questions.py`): asks the model for two questions per chunk, then keeps only items whose answer is short, appears verbatim in the passage and is not given away by the question. This is an automatic grounding check, not a replacement for the hand-check PLAN.md requires. Not yet run: it needs `SECURERAG_GROQ_API_KEY`.
+- **Splits** (`data/splits.json`): 200 pages are the question source, 220 the rest.
+- **Not committed**: `data/raw`, `corpus.jsonl`, `chunks.jsonl` are git-ignored; rebuild with the README commands.
 
-How to check: `pytest` passes; `python -m securerag.ingest.build` regenerates the same chunks and splits from the same raw files.
+How to check: `pytest` and `ruff check .` pass; `python -m securerag.ingest.build` regenerates identical chunks and splits.

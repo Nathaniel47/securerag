@@ -4,6 +4,7 @@ import re
 
 # No tokenizer dependency at ingest time; ~0.75 words per token is a close English approximation.
 WORDS_PER_TOKEN = 0.75
+MIN_TAIL_WORDS = 30
 
 
 def chunk_text(text: str, chunk_tokens: int = 300) -> list[str]:
@@ -22,7 +23,16 @@ def chunk_text(text: str, chunk_tokens: int = 300) -> list[str]:
             current.append(" ".join(piece))
             count += len(piece)
     if current:
-        chunks.append("\n\n".join(current))
+        tail = "\n\n".join(current)
+        # A tiny remainder makes a useless retrieval unit, so fold it into the previous chunk.
+        if (
+            chunks
+            and count < MIN_TAIL_WORDS
+            and len(chunks[-1].split()) + count <= max_words * 1.25
+        ):
+            chunks[-1] += "\n\n" + tail
+        else:
+            chunks.append(tail)
     return chunks
 
 

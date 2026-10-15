@@ -12,7 +12,7 @@ Budget: 6 weeks of evenings and weekends, free compute, free hosting, about 8 GB
 | Model names | Chosen and verified in week 1 against each provider's current model list. Each run records them in `results/run_meta.json`. |
 | Local LLM | Ollama is **optional**, one small model, and only if week 5 has room. |
 | Embeddings | Local `all-MiniLM-L6-v2` on CPU (~90 MB). It uses no API quota and is fully reproducible. |
-| Corpus | One domain: **GOV.UK guidance pages** (Open Government Licence v3), about 300–500 pages, plus synthetic "restricted" docs for the leakage tests. |
+| Corpus | One domain: **Ghana** (changed from GOV.UK on 2026-10-15 at the owner's request). About 400 English Wikipedia articles on Ghana's government and public services, health, education, regions, institutions and economy (CC BY-SA 4.0), plus synthetic "restricted" docs with fake Ghanaian-style records for the leakage tests. Official Ghanaian sources are added only if their reuse licence is clearly stated; see the README licence table. |
 | Question set | **150 clean questions** with short reference answers, plus **100 attack attempts** (25 per attack). |
 | Attacks | Knowledge-base poisoning, indirect prompt injection, direct prompt injection, data leakage. |
 | Defenses | D1 source filtering, D2 retrieval anomaly score, D3 answer-consistency check, D4 output filter. |
@@ -26,7 +26,7 @@ Budget: 6 weeks of evenings and weekends, free compute, free hosting, about 8 GB
 ```mermaid
 flowchart LR
   subgraph Ingest
-    SRC[GOV.UK pages<br/>+ synthetic restricted docs] --> CHK[Chunker<br/>+ source/trust tags]
+    SRC[Ghana Wikipedia articles<br/>+ synthetic restricted docs] --> CHK[Chunker<br/>+ source/trust tags]
     ATK1[Attack kit:<br/>poison / injected docs] --> CHK
     CHK --> D1{D1 source filter}
     D1 --> EMB[Embedder<br/>MiniLM, CPU]
@@ -95,7 +95,7 @@ Every run stays under 2,000 calls. Real counts will be lower, because D1 and D2 
 ```
 securerag/
 ├── securerag/
-│   ├── ingest/          # fetch_govuk.py, chunk.py, synthetic_restricted.py
+│   ├── ingest/          # fetch_wikipedia.py, clean.py, build.py, chunk.py, synthetic_restricted.py
 │   ├── rag/             # embed.py, store.py (Chroma), retrieve.py, generate.py, pipeline.py
 │   ├── llm/             # client.py (interface), groq.py, gemini.py, ollama.py, cache.py
 │   ├── attacks/         # poisoning.py, indirect_injection.py, direct_injection.py, leakage.py
@@ -134,7 +134,7 @@ securerag/
 ## 5. Risks and first checks
 
 1. **Free-tier limits and model changes.** Free-tier limits and model lists change often. *Check first (week 1):* the current daily request and token limits for the chosen Groq and Gemini models, against the budget in section 2. The runner resumes from the cache, so a run can span days if needed. The public demo shows precomputed results by default and caps live questions per day, so visitors can't use up the key. Gemini's free tier may use prompts to improve Google's models, which is acceptable here because all data is public or synthetic.
-2. **Data licences and personal data.** GOV.UK content is under the Open Government Licence v3: free reuse with attribution, credited in the README and on the dashboard. Avoid university handbooks, which are usually all-rights-reserved. The leakage tests use **synthetic** fake records only, never real personal data. *Check first:* the OGL terms, and that each fetched page carries the OGL, since a few GOV.UK pages include third-party material.
+2. **Data licences and personal data.** Wikipedia text is CC BY-SA 4.0: reuse needs attribution (article URL and revision id are in `data/manifest.jsonl`) and the derived corpus is shared under the same licence. Government sites (e.g. data.gov.gh) are used only when a reuse licence is clearly stated. The leakage tests use **synthetic** fake records only (Ghanaian-style names, IDs marked `FAKE`), never real personal data. *Check first:* each source's licence before adding it, and that fake IDs cannot be valid Ghana Card or NHIS numbers.
 3. **Scope.** Four attacks, four defenses and a UI in six weeks is still tight. Mitigation: freeze the attack and defense lists at the end of week 1, keep all scoring automatic, and keep the dashboard reading static CSVs. If week 4 slips, cut the Gemini confirmation run before cutting a defense.
 
 Memory is not a risk: Chroma, MiniLM, FastAPI and Streamlit together should stay under about 2 GB. Ollama with a 3B model adds about 3–4 GB, which is why it stays optional.
@@ -145,7 +145,7 @@ Memory is not a risk: Chroma, MiniLM, FastAPI and Streamlit together should stay
 - **Streamlit instead of React**: one app with two pages.
 - **Chroma embedded** in the API process rather than a separate server.
 - **Local embeddings**, so only answer generation uses API quota.
-- **One-domain corpus** (GOV.UK), so the demo tells one coherent story.
+- **One-domain corpus** (Ghana, from Wikipedia), so the demo tells one coherent story.
 - **Automatic scoring only**: success markers for attacks and a normalised match for clean answers, with no LLM judge.
 - **Single defenses + one combined config** instead of a full grid.
 - **Free hosting:** Hugging Face Spaces (Docker) runs api + ui, with keys stored as Space secrets.
