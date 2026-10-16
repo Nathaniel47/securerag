@@ -1,20 +1,81 @@
 {
-  "models_checked_on": "2026-10-15",
+  "models_checked_on": "2026-10-16",
   "groq": {
-    "model": "llama-3.1-8b-instant",
-    "status": "production (console.groq.com/docs/models)",
-    "why": "small, fast, plain instruct model; gpt-oss-20b is a reasoning model and would add hidden reasoning tokens",
-    "free_limits": "UNVERIFIED: the rate-limits page has no free-plan row for this model; check console.groq.com/settings/limits",
-    "fallback": "openai/gpt-oss-20b (free: 30 RPM, 1K RPD, 8K TPM, 200K TPD)"
+    "model": "openai/gpt-oss-20b",
+    "reasoning_effort": "low",
+    "max_completion_tokens": 400,
+    "why": "owner's account no longer has llama-3.1-8b-instant; gpt-oss-20b is the smallest remaining chat model",
+    "available_chat_models_and_limits": {
+      "openai/gpt-oss-20b": {
+        "rpm": 30,
+        "rpd": 1000,
+        "tpm": 8000,
+        "tpd": 200000
+      },
+      "openai/gpt-oss-120b": {
+        "rpm": 30,
+        "rpd": 1000,
+        "tpm": 8000,
+        "tpd": 200000
+      },
+      "qwen/qwen3.8-27b": {
+        "rpm": 30,
+        "rpd": 1000,
+        "tpm": 8000,
+        "tpd": 200000
+      }
+    },
+    "limits_source": "reported by the account owner 2026-10-16 (rpm/rpd/tpm/tpd; TPD resets 00:00 UTC)",
+    "prompt_guard": {
+      "model": "meta-llama/llama-prompt-guard-2-86m",
+      "status": "preview",
+      "limits": {
+        "rpm": 30,
+        "rpd": 14400,
+        "tpm": 15000,
+        "tpd": 500000
+      },
+      "threshold": 0.5,
+      "output": "score string in [0,1]; context 512 tokens",
+      "used_as": "D5 defense"
+    }
   },
   "gemini": {
     "model": "gemini-3.5-flash-lite",
-    "status": "stable (ai.google.dev/gemini-api/docs/models, updated 2026-10-13)",
-    "why": "cheapest stable model the page recommends for new projects; gemini-2.0-* are shut down",
-    "free_limits": "UNVERIFIED: Google publishes no per-model table; see aistudio.google.com/rate-limit"
+    "status": "stable (ai.google.dev, 2026-10-13)",
+    "free_limits": "UNVERIFIED: see aistudio.google.com/rate-limit"
   },
   "temperature": 0.3,
   "seed": 42,
-  "git_commit": "recorded at run time by the eval runner",
-  "notes": "Model IDs and limits were read from provider docs, not from a live API call (no keys used yet)."
+  "git_commit": "84f6387977ea884c205bb1098c20579ad6fb1d09",
+  "notes": "Model IDs and limits come from provider docs and the account owner, not from a live model-list call.",
+  "top_k": 3,
+  "chunk_trim_chars": 600,
+  "token_budget": {
+    "target_tokens_per_call": 700,
+    "measured_question_generation": {
+      "calls": 80,
+      "tokens": 42375,
+      "tokens_per_call": 530
+    },
+    "calls_per_query_by_config": {
+      "none": 1,
+      "d1": 1,
+      "d2": 1,
+      "d3": 2,
+      "d4": 0,
+      "d5": 1,
+      "combined": 2,
+      "total": 8
+    },
+    "full_run_worst_case": {
+      "calls": 2000,
+      "tokens": 1400000,
+      "days_at_200k_tpd": 7.0
+    },
+    "full_run_core6_worst_case_days": 6.1,
+    "full_run_expected_days": "about 4-5 (D1/D2/D4 mostly reuse cached answers on clean questions)",
+    "resumable": "yes: cache plus llm_cache/usage_*.json; the runner stops at 95% of TPD and continues after 00:00 UTC",
+    "not_included": "3 repeat runs (about 1,680 calls worst case, ~5.9 more days) and the Gemini confirmation run (separate quota)"
+  }
 }
