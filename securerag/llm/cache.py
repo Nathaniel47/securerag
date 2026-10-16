@@ -7,9 +7,18 @@ from pathlib import Path
 DEFAULT_DIR = Path("llm_cache")
 
 
-def cache_key(model: str, messages: list[dict], temperature: float, seed: int, repeat: int) -> str:
+def cache_key(
+    model: str,
+    messages: list[dict],
+    temperature: float | None,
+    seed: int | None,
+    repeat: int,
+    settings: dict | None = None,
+) -> str:
     payload = json.dumps(
-        [model, messages, temperature, seed, repeat], sort_keys=True, ensure_ascii=False
+        [model, messages, temperature, seed, repeat, settings or {}],
+        sort_keys=True,
+        ensure_ascii=False,
     )
     return hashlib.sha256(payload.encode()).hexdigest()
 

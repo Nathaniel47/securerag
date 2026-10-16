@@ -7,7 +7,7 @@ Budget: 6 weeks of evenings and weekends, free compute, free hosting, about 8 GB
 
 | Area | Decision |
 |---|---|
-| Main LLM | **Groq free API**: a fresh account with its own key (`SECURERAG_GROQ_API_KEY`). It's a small, fast instruct model, chosen in week 1. |
+| Main LLM | **Groq free API** (`SECURERAG_GROQ_API_KEY`): `openai/gpt-oss-20b` with `reasoning_effort=low` (changed 2026-10-16: `llama-3.1-8b-instant` is not available on the owner's account). Free limits: 30 RPM, 1K RPD, 8K TPM, **200K TPD**. About 700 tokens per call (top-3 chunks trimmed to 600 chars, short answers). |
 | Second LLM | **Gemini free API**: its own key in a **new Google Cloud project** (`SECURERAG_GEMINI_API_KEY`). It's used only for a confirmation run. |
 | Model names | Chosen and verified in week 1 against each provider's current model list. Each run records them in `results/run_meta.json`. |
 | Local LLM | Ollama is **optional**, one small model, and only if week 5 has room. |
@@ -15,8 +15,8 @@ Budget: 6 weeks of evenings and weekends, free compute, free hosting, about 8 GB
 | Corpus | One domain: **Ghana** (changed from GOV.UK on 2026-10-15 at the owner's request). About 400 English Wikipedia articles on Ghana's government and public services, health, education, regions, institutions and economy (CC BY-SA 4.0), plus synthetic "restricted" docs with fake Ghanaian-style records for the leakage tests. Official Ghanaian sources are added only if their reuse licence is clearly stated; see the README licence table. |
 | Question set | **150 clean questions** with short reference answers, plus **100 attack attempts** (25 per attack). |
 | Attacks | Knowledge-base poisoning, indirect prompt injection, direct prompt injection, data leakage. |
-| Defenses | D1 source filtering, D2 retrieval anomaly score, D3 answer-consistency check, D4 output filter. |
-| Configurations | 6: no defense, each defense alone (4), and all four combined. **No full attack × defense grid.** |
+| Defenses | D1 source filtering, D2 retrieval anomaly score, D3 answer-consistency check, D4 output filter, and **D5 Prompt Guard** (`meta-llama/llama-prompt-guard-2-86m`, added 2026-10-16: scores the question and each retrieved chunk, blocks the question or drops chunks above a threshold). |
+| Configurations | 7: no defense, each defense alone (5), and D1–D4 combined (D5 is evaluated alone, so "combined" stays comparable with the original plan). **No full attack × defense grid.** |
 | UI | Streamlit playground + dashboard over a FastAPI backend. |
 | Secrets | Pre-commit secret scan. `.env.example` holds variable names with empty values only. |
 | Out of scope | React, LangChain/LlamaIndex, fine-tuning, multi-agent setups, attacking anything except this app. Stretch only: prompt "spotlighting" as a 5th defense. |
@@ -75,20 +75,20 @@ flowchart LR
 
 ## 2. Call budget
 
-LLM calls per query, by configuration:
+LLM calls per query, by configuration (answer model, `gpt-oss-20b`):
 
-| No defense | D1 | D2 | D3 | D4 | Combined | Total |
-|---|---|---|---|---|---|---|
-| 1 | 1 | 1 | 2 | 0 (filters the no-defense answer) | 2 | **7** |
+| No defense | D1 | D2 | D3 | D4 | D5 | Combined (D1–D4) | Total |
+|---|---|---|---|---|---|---|---|
+| 1 | 1 | 1 | 2 | 0 (filters the no-defense answer) | 1 (+ up to 4 Prompt Guard calls, separate quota) | 2 | **8** |
 
 | Run | Queries | Calls (worst case, before cache hits) |
 |---|---|---|
-| **Full run** (Groq), once | 150 clean + 100 attack = 250 | **1,750** |
-| **Repeat runs** (Groq), 3 times | 30 clean + 40 attack (10 per attack) = 70 | 490 each, 1,470 total |
-| **Confirmation run** (Gemini), once | the same 70-query subset | 490 |
-| **Question generation**, one-off | 150 questions in batches | about 30–50 |
+| **Full run** (Groq), once | 150 clean + 100 attack = 250 | **2,000** (1,750 without D5) |
+| **Repeat runs** (Groq), 3 times | 30 clean + 40 attack = 70 | 560 each, 1,680 total |
+| **Confirmation run** (Gemini), once | the same 70-query subset | 560 |
+| **Question generation**, one-off | 150 questions | 80 calls, 42K tokens (measured) |
 
-Every run stays under 2,000 calls. Real counts will be lower, because D1 and D2 often leave the retrieved chunks unchanged on clean questions, and those calls then hit the cache. All runs use one fixed temperature (e.g. 0.3), recorded in `run_meta.json`. At temperature 0 the repeats would mostly measure API noise rather than model behaviour. If a provider's daily limit is lower than a run needs, the runner resumes from the cache the next day.
+**Token plan (the binding limit is 200K tokens per day, not requests).** At about 700 tokens per call the full run is at most 2,000 × 700 = 1.4M tokens = **7.0 days** worst case (6.1 days for the original six configurations). Expected is **about 4–5 days**, because D1, D2 and D4 usually leave the prompt unchanged on clean questions and hit the cache. The runner orders work so the six original configurations finish first and D5 last. It stops at 95% of the day's tokens and carries on after 00:00 UTC, and everything answered is cached, so it is resumable. The 8K tokens-per-minute cap is enforced by sleeping (about 11 calls a minute). The three repeat runs are not in the 6-day plan: at the same rate they add up to about 5.9 days, so they will use a smaller subset or be cut first, before any defense. Prompt Guard has its own 500K/day quota and needs roughly 200K tokens for a full run. All runs use one fixed temperature (0.3), recorded in `run_meta.json`.
 
 ## 3. Repo structure
 
@@ -99,7 +99,7 @@ securerag/
 │   ├── rag/             # embed.py, store.py (Chroma), retrieve.py, generate.py, pipeline.py
 │   ├── llm/             # client.py (interface), groq.py, gemini.py, ollama.py, cache.py
 │   ├── attacks/         # poisoning.py, indirect_injection.py, direct_injection.py, leakage.py
-│   ├── defenses/        # source_filter.py, anomaly.py, consistency.py, output_filter.py
+│   ├── defenses/        # source_filter.py, anomaly.py, consistency.py, output_filter.py, prompt_guard.py
 │   ├── eval/            # questions.py, scoring.py, metrics.py, run_eval.py (full | repeat | confirm)
 │   └── config.py        # defense switches, model IDs, k, chunk size, temperature
 ├── api/                 # FastAPI app: /ask, /trace, /results

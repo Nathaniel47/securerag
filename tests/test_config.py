@@ -1,11 +1,11 @@
 import pytest
 
-from securerag.config import CONFIGS, DEFENSES, Config, groq_api_key
+from securerag.config import CONFIGS, CORE_DEFENSES, Config, groq_api_key
 
 
-def test_six_configurations():
-    assert len(CONFIGS) == 6
-    assert CONFIGS["combined"] == DEFENSES
+def test_seven_configurations():
+    assert len(CONFIGS) == 7
+    assert CONFIGS["combined"] == CORE_DEFENSES
 
 
 def test_with_defenses_toggles():

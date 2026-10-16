@@ -5,6 +5,7 @@ Output: data/questions.jsonl. Every item must still be hand-checked (PLAN.md wee
 """
 
 import argparse
+import csv
 import json
 import random
 import re
@@ -56,7 +57,60 @@ def is_valid(item: dict, passage: str) -> bool:
         return False
     if norm_words(a) not in norm_words(passage):
         return False
+    if re.search(r"\b(passage|article|text|excerpt)\b", q.lower()):
+        return False  # questions must stand alone, because retrieval will not show the passage
     return norm_words(a) not in norm_words(q)
+
+
+def evidence_sentence(passage: str, answer: str) -> str:
+    """The sentence containing the answer, so a reviewer can verify it at a glance."""
+    target = norm_words(answer)
+    for sent in re.split(r"(?<=[.!?])\s+|\n+", passage):
+        if target in norm_words(sent):
+            return sent.strip()
+    return ""
+
+
+def auto_flags(q: dict) -> str:
+    """Hints for the reviewer: questions that may be ambiguous without their source page."""
+    flags = []
+    if not q["evidence"]:
+        flags.append("no_evidence_sentence")
+    if not re.search(r"[A-Z0-9]", q["question"][1:]):
+        flags.append("no_named_entity")
+    if re.search(
+        r"\b(the school|the party|the candidate|this|that|the company)\b", q["question"].lower()
+    ):
+        flags.append("vague_reference")
+    return ";".join(flags)
+
+
+REVIEW_COLUMNS = (
+    "id", "question", "reference_answer", "evidence_sentence", "source_url", "auto_flags",
+    "keep (y/n)", "corrected_question", "corrected_answer", "notes",
+)  # fmt: skip
+
+
+def export_review_csv(questions: list[dict], path: Path) -> None:
+    """Spreadsheet for the hand-check; utf-8 with BOM so Excel shows accents correctly."""
+    with path.open("w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        w.writerow(REVIEW_COLUMNS)
+        for q in questions:
+            w.writerow(
+                [
+                    q["id"],
+                    q["question"],
+                    q["answer"],
+                    q["evidence"],
+                    q["source"],
+                    auto_flags(q),
+                    "",
+                    "",
+                    "",
+                    "",
+                ]
+            )
 
 
 def generate(
@@ -99,6 +153,7 @@ def generate(
                             "doc_id": doc,
                             "chunk_id": chunk["chunk_id"],
                             "source": chunk["source"],
+                            "evidence": evidence_sentence(chunk["text"], item["answer"]),
                             "hand_checked": False,
                         }
                     )
@@ -121,4 +176,5 @@ if __name__ == "__main__":
         args.data / "questions.jsonl",
         Config().seed,
     )
+    export_review_csv(qs, Path("results/questions_review.csv"))
     print(f"generated {len(qs)} questions")
