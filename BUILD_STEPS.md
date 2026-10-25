@@ -45,7 +45,7 @@ Include unit tests. In LEARNING.md, cover the key ML or security concepts this f
 
 Don't explain steps in chat. Put plain-English explanations of what you built and why it matters in LEARNING.md. In chat, give me only a short summary at the end: what was built, key numbers, and any decision you need from me.
 
-## - [ ] Step 5: Remaining features
+## - [x] Step 5: Remaining features
 
 Read PLAN.md and CLAUDE.md first, and follow them. If anything below conflicts with PLAN.md, PLAN.md wins. Commit and push after each completed task.
 

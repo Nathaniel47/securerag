@@ -17,5 +17,5 @@ After the full run: `--mode repeat --repeat 1`, then `2`, then `3`, then `--mode
 - [x] Step 2 repo setup, Step 3 data pipeline (question review applied)
 - [x] Step 4 core attacks
 - [x] Step 5.1 defenses, 5.2 evaluation runner
-- [ ] Step 5.3 API and UI
-- [ ] Step 6 evaluation report (needs the full run to finish)
+- [x] Step 5.3 API and UI
+- [~] Step 6: tooling, limitations and LEARNING done; results table and charts need the full run to finish
