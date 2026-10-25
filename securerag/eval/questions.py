@@ -181,7 +181,10 @@ def generate(
 
 
 if __name__ == "__main__":
+    from securerag.config import load_env
     from securerag.llm.groq import groq_client
+
+    load_env()
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data", type=Path, default=Path("data"))
