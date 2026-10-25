@@ -165,6 +165,29 @@ def test_evidence_sentence():
     assert evidence_sentence(passage, "Accra") == "Accra is the capital."
 
 
+def test_evidence_sentence_prefers_the_sentence_that_matches_the_question():
+    passage = (
+        "The founders include Kofi Mensah. "
+        "In the 2012 election, Kofi Mensah was the presidential candidate."
+    )
+    q = "Who was the presidential candidate in 2012?"
+    assert evidence_sentence(passage, "Kofi Mensah", q).startswith("In the 2012")
+    assert evidence_sentence(passage, "Kofi Mensah").startswith("The founders")
+
+
+def test_evidence_sentence_keeps_initials_together():
+    passage = "The trial began. The prosecutor was G. E. K. Aikins. He spoke."
+    assert evidence_sentence(passage, "G. E. K. Aikins") == "The prosecutor was G. E. K. Aikins."
+
+
+def test_is_valid_rejects_current_and_currently():
+    passage = "Kofi Mensah is the treasurer of the council."
+    ok = {"question": "Who is the treasurer of the council?", "answer": "Kofi Mensah"}
+    assert is_valid(ok, passage)
+    for q in ("Who is the current treasurer of the council?", "Who currently is the treasurer?"):
+        assert not is_valid({"question": q, "answer": "Kofi Mensah"}, passage)
+
+
 def _fixture(tmp_path):
     text = "Kumasi is the capital of the Ashanti Region of Ghana. " * 12
     chunks = [
