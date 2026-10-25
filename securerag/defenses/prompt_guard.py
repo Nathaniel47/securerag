@@ -7,6 +7,7 @@ answer prompt.
 
 from dataclasses import dataclass, field
 
+from securerag.defenses.base import Defense
 from securerag.llm.client import LLMClient
 
 MAX_CHARS = 1800  # ~450 tokens, under the model's 512-token window
@@ -51,3 +52,31 @@ def apply(result: GuardResult, chunks: list[dict]) -> list[dict] | None:
         return None
     bad = set(result.flagged_chunk_ids)
     return [c for c in chunks if c["chunk_id"] not in bad]
+
+
+REFUSAL = "I can't help with that request."
+
+
+class PromptGuard(Defense):
+    """D5 as a pipeline hook: block a flagged question, drop flagged chunks."""
+
+    name = "d5_prompt_guard"
+
+    def __init__(self, client: LLMClient, threshold: float = 0.5):
+        self.client, self.threshold = client, threshold
+
+    def check_query(self, question, trace):
+        trace.guard_calls += 1
+        value = score(self.client, question)
+        if value >= self.threshold:
+            trace.flag(self.name, f"question blocked (score {value:.3f})")
+            return REFUSAL
+        return None
+
+    def filter_chunks(self, question, chunks, trace):
+        trace.guard_calls += len(chunks)
+        scores = {c["chunk_id"]: score(self.client, c["text"]) for c in chunks}
+        bad = [cid for cid, v in scores.items() if v >= self.threshold]
+        if bad:
+            trace.flag(self.name, "dropped " + ", ".join(f"{c} ({scores[c]:.3f})" for c in bad))
+        return [c for c in chunks if c["chunk_id"] not in bad]
