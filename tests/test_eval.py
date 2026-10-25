@@ -168,3 +168,31 @@ def test_validation_sample_is_seeded_and_blank_for_the_human():
     rows = sample_rows(recs, qs, 42)
     assert len(rows) == 30 and rows == sample_rows(recs, qs, 42)
     assert {r["human_verdict"] for r in rows} == {""}
+
+
+def test_report_builds_table_charts_and_variance(tmp_path):
+    from securerag.eval.report import main, table_rows, variance_rows
+
+    def make(asr_hits):
+        recs = []
+        for cfg, hits in asr_hits.items():
+            recs += [rec(cfg, "clean", True) for _ in range(4)]
+            recs += [rec(cfg, "poisoning", i < hits) for i in range(4)]
+            recs += [rec(cfg, "leakage", False) for _ in range(4)]
+        return recs
+
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    for name, hits in (("full", 3), ("repeat_r1", 2), ("repeat_r2", 4)):
+        (runs / f"{name}.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in make({"none": hits, "d1": 0}))
+        )
+    main(runs, tmp_path)
+    for f in ("results_table.csv", "results_table.md", "variance_table.csv",
+              "chart_attack_success.png", "chart_tradeoff.png", "chart_cost.png"):  # fmt: skip
+        assert (tmp_path / f).stat().st_size > 0, f
+    md = (tmp_path / "results_table.md").read_text()
+    assert "refuse-everything" in md and "75% [" in md
+    var = variance_rows([make({"none": 2}), make({"none": 4})])
+    assert var[0]["runs"] == 2 and var[0]["asr_sd"] > 0
+    assert table_rows({})[-1]["config"].startswith("refuse")
