@@ -65,3 +65,13 @@ How to check: `pytest` and `ruff check .` pass; `python -m securerag.ingest.buil
 - A 10-call live trial showed about 540 tokens per call, so about 350 calls per day under the 200K limit.
 
 **How to run and check.** `pytest` (all offline, using a hash embedder and a fake LLM). `python -m securerag.attacks.build` regenerates the 100 attempts deterministically. `python -m securerag.eval.run_eval --mode full --limit 2 --configs none` runs a small real trial. The `.env` file is read only by command-line entry points, never by library code.
+
+## Step 5.1: Defenses D1 to D5
+
+Each defense is a class in `defenses/` that overrides only the hooks it needs (`defenses/base.py`); `defenses/__init__.py` builds the list for a configuration.
+
+- **D1 source filter.** Public queries may only retrieve chunks tagged `official`, and new documents are rejected at ingest if they contain instruction-like text (`defenses/patterns.py`). It stops uploads and leakage outright, and the scan stops injections even on the `official_edit` channel, but a plain wrong fact on a trusted page passes. Reading: OWASP LLM08 (vector and embedding weaknesses).
+- **D2 retrieval anomaly score.** No LLM calls. It drops a retrieved chunk that contains instruction text, is nearly identical (cosine >= 0.915) to another retrieved chunk, or matches the question with similarity >= 0.85. Thresholds come from the 150 clean questions: the highest genuine top-1 similarity is 0.834 and the highest genuine pair similarity is 0.90, while poison pairs start at 0.92. Result without any LLM: it removed the planted documents in 50/50 poisoning and injection attempts and flagged 0/150 clean questions. **Caution:** that is because my attacks copy the question word for word, which is exactly what D2 looks for. An attacker who paraphrases would be much harder to catch, and this must appear under limitations.
+- **D3 answer consistency.** Answers separately from chunks [1],[3] and chunk [2]; a half with no answer abstains; two different answers produce "I could not verify". It costs 2 calls and will also refuse some clean questions (the false-block rate shows how many). When both halves contain poison, they agree and it fails. Reading: Xiang et al. 2024 (RobustRAG).
+- **D4 output filter.** No LLM calls. It replaces answers that contain a case-note canary, a synthetic or real-format ID, an email, a Ghana phone number, the system-prompt canary or any five consecutive words of the system prompt. It cannot see poisoning or an injected marker.
+- **D5 Prompt Guard.** Scores the question and each chunk with the classifier (separate Groq quota) and blocks or drops those at or above 0.5.
