@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 
 CORE_DEFENSES = ("d1_source_filter", "d2_anomaly", "d3_consistency", "d4_output_filter")
 # D5 was added after the plan froze the four core defenses; it is evaluated alone and is not
@@ -67,6 +68,17 @@ CONFIGS: dict[str, tuple[str, ...]] = {
     "combined": CORE_DEFENSES,
     "d5": ("d5_prompt_guard",),
 }
+
+
+def load_env(path: Path = Path(".env")) -> None:
+    """Copy SECURERAG_* lines from a local .env into the environment (never overriding it)."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        name, sep, value = line.partition("=")
+        name = name.strip()
+        if sep and name.startswith("SECURERAG_") and value.strip():
+            os.environ.setdefault(name, value.strip().strip("\"'"))
 
 
 def groq_api_key() -> str | None:

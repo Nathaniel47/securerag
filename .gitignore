@@ -26,3 +26,4 @@ llm_cache/
 Thumbs.db
 data/chunks.jsonl
 data/corpus.jsonl
+data/embeddings.npz
