@@ -27,3 +27,4 @@ Thumbs.db
 data/chunks.jsonl
 data/corpus.jsonl
 data/embeddings.npz
+results/*.log
