@@ -11,7 +11,7 @@ from securerag.llm.client import LLMClient
 def groq_backend(
     model: str, messages: list[dict], temperature: float | None, seed: int | None, settings: dict
 ) -> tuple[str, int]:
-    from groq import Groq, RateLimitError
+    from groq import APIConnectionError, Groq, RateLimitError
 
     key = groq_api_key()
     if not key:
@@ -22,13 +22,25 @@ def groq_backend(
         kwargs["temperature"] = temperature
     if seed is not None:
         kwargs["seed"] = seed
-    for attempt in range(6):
+
+    def call() -> tuple[str, int]:
+        resp = client.chat.completions.create(model=model, messages=messages, **kwargs)
+        return resp.choices[0].message.content or "", resp.usage.total_tokens
+
+    return call_with_retries(call, (RateLimitError, APIConnectionError))
+
+
+def call_with_retries(call, retryable: tuple, attempts: int = 8, sleep=time.sleep):
+    """Retry rate limits and network faults (timeouts are connection errors) with backoff,
+    so a flaky connection does not stop a multi-day run. Cached answers are never re-asked."""
+    for attempt in range(attempts):
         try:
-            resp = client.chat.completions.create(model=model, messages=messages, **kwargs)
-            return resp.choices[0].message.content or "", resp.usage.total_tokens
-        except RateLimitError:
-            time.sleep(min(60, 5 * 2**attempt))
-    raise RuntimeError("Groq rate limit not clearing; resume later (responses are cached)")
+            return call()
+        except retryable:
+            if attempt == attempts - 1:
+                break
+            sleep(min(60, 5 * 2**attempt))
+    raise RuntimeError("Groq not reachable or rate limit not clearing; resume later")
 
 
 def groq_client(cfg: Config | None = None) -> LLMClient:
