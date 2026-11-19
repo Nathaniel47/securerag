@@ -15,6 +15,16 @@ from api.app import app as api_app
 from securerag.config import DEFENSES
 from ui.data import load_results, replay_rows, summary_tables
 
+try:  # ZeroGPU Spaces refuse to start without one GPU-marked function; this app needs no GPU.
+    import spaces
+
+    @spaces.GPU
+    def _gpu_marker() -> None:
+        return None
+
+except ImportError:  # local run
+    pass
+
 api = TestClient(api_app)
 records = load_results()
 tables = summary_tables(records) if records else None

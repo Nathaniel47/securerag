@@ -15,7 +15,7 @@ The Docker Space type is marked Paid on some accounts, so this uses the free Gra
 1. Go to https://huggingface.co/new-space.
 2. Space name: `securerag`. License: any (for example MIT).
 3. Space SDK: **Gradio**, template **Blank**.
-4. Space hardware: **CPU basic, 2 vCPU, 16 GB, free**.
+4. Space hardware: **ZeroGPU** if CPU basic is marked as a Pro feature on your page (ZeroGPU is free to choose). The app does not use the GPU; `app.py` has a small marker function because ZeroGPU refuses to start an app without one. If you can pick plain **CPU basic** for free, either works.
 5. Visibility: **Public**. Click **Create Space**.
 
 ## 3. Add the API key as a secret (you)
@@ -44,7 +44,7 @@ If Spaces rejects the push because it already created a starter README, use `git
 
 ## 5. Wait for the build
 
-The first build takes about 5 to 10 minutes (it installs PyTorch CPU, the embedding model dependencies and Gradio). Watch the **Logs** tab. When the status turns **Running**, open the Space.
+The first build takes about 5 to 10 minutes (it installs the embedding model dependencies and Gradio). Watch the **Logs** tab. When the status turns **Running**, open the Space.
 
 ## 6. Check it works
 
