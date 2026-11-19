@@ -52,3 +52,35 @@ def test_backend_refuses_to_run_without_a_key(monkeypatch):
     monkeypatch.delenv("SECURERAG_GEMINI_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="SECURERAG_GEMINI_API_KEY"):
         gemini_backend("gemini-x", [{"role": "user", "content": "hi"}], 0.0, 1, {})
+
+
+def test_client_stays_alive_for_the_whole_request(monkeypatch):
+    """A temporary Client is freed (and the real one closes its HTTP session) before the
+    request finishes; this fake marks itself closed when freed, as the real client does."""
+    seen = {}
+
+    class Models:
+        def generate_content(self, model, contents, config):
+            seen["closed_during_request"] = Client.closed
+            return types.SimpleNamespace(text="ok", usage_metadata=None)
+
+    class Client:
+        closed = False
+
+        def __init__(self, api_key):
+            self.models = Models()
+
+        def __del__(self):
+            Client.closed = True
+
+    genai = types.ModuleType("google.genai")
+    genai.Client = Client
+    genai.types = types.SimpleNamespace(GenerateContentConfig=lambda **kw: kw)
+    google = types.ModuleType("google")
+    google.genai = genai
+    monkeypatch.setitem(sys.modules, "google", google)
+    monkeypatch.setitem(sys.modules, "google.genai", genai)
+    monkeypatch.setattr(Client, "closed", False)
+    monkeypatch.setenv("SECURERAG_GEMINI_API_KEY", "test-key")
+    gemini_backend("gemini-x", [{"role": "user", "content": "hi"}], 0.0, 1, {})
+    assert seen["closed_during_request"] is False
