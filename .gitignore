@@ -24,7 +24,6 @@ llm_cache/
 .idea/
 .DS_Store
 Thumbs.db
-data/chunks.jsonl
 data/corpus.jsonl
-data/embeddings.npz
+# chunks.jsonl and embeddings.npz are tracked: the deployed demo needs them (7 MB, CC BY-SA text)
 results/*.log

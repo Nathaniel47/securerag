@@ -45,3 +45,24 @@ def summary_tables(records: list[dict]) -> dict[str, pd.DataFrame]:
 
 def load_results(path: Path = RUNS) -> list[dict]:
     return load_records(path)
+
+
+def replay_rows(records: list[dict], item_id: str) -> list[dict]:
+    """One row per configuration for a recorded query (first repeat only), in CONFIGS order."""
+    by_cfg = {r["config"]: r for r in records if r["item_id"] == item_id and r["repeat"] == 0}
+    rows = []
+    for cfg in CONFIGS:
+        r = by_cfg.get(cfg)
+        if r is None:
+            continue
+        outcome = r.get("success") if "success" in r else r.get("correct")
+        rows.append(
+            {
+                "config": cfg,
+                "blocked": r["blocked"],
+                "defenses fired": "; ".join(r["fired"]) or "-",
+                "outcome": outcome,
+                "answer": r["answer"],
+            }
+        )
+    return rows

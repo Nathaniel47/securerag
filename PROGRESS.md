@@ -19,3 +19,4 @@ After the full run: `--mode repeat --repeat 1`, then `2`, then `3`, then `--mode
 - [x] Step 5.1 defenses, 5.2 evaluation runner
 - [x] Step 5.3 API and UI
 - [x] Step 6: all runs finished, report built, scorer hand-validated (27/30)
+- [~] Step 7: demo built and tested locally, DEPLOY.md written; waiting for the Hugging Face account steps (owner)

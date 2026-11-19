@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -97,3 +98,31 @@ def test_dashboard_page_renders_with_and_without_results(tmp_path, monkeypatch):
     monkeypatch.syspath_prepend(str(root))
     at.run()
     assert not at.exception and at.info  # no results file yet
+
+
+def test_replay_rows_covers_each_config_once_and_labels_outcome():
+    from ui.data import replay_rows
+
+    recs = [
+        {"config": "none", "item_id": "a1", "repeat": 0, "blocked": False, "fired": [],
+         "answer": "bad", "success": True},
+        {"config": "d2", "item_id": "a1", "repeat": 0, "blocked": False, "fired": ["d2: x"],
+         "answer": "ok", "success": False},
+        {"config": "d2", "item_id": "a1", "repeat": 1, "blocked": False, "fired": [],
+         "answer": "other repeat", "success": True},
+        {"config": "none", "item_id": "q1", "repeat": 0, "blocked": False, "fired": [],
+         "answer": "x", "correct": True},
+    ]  # fmt: skip
+    rows = replay_rows(recs, "a1")
+    assert [r["config"] for r in rows] == ["none", "d2"]
+    assert rows[0]["outcome"] is True and rows[1]["outcome"] is False
+    assert rows[1]["answer"] == "ok" and rows[1]["defenses fired"] == "d2: x"
+    assert replay_rows(recs, "q1")[0]["outcome"] is True
+
+
+def test_recorded_runs_page_renders_without_errors():
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(Path("ui/recorded.py").resolve()), default_timeout=30).run()
+    assert not app.exception
+    assert app.dataframe

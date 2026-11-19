@@ -4,3 +4,9 @@
 data/raw
 data/chroma
 __pycache__
+llm_cache
+data/corpus.jsonl
+results/*.log
+scripts
+.pytest_cache
+.ruff_cache

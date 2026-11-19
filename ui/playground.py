@@ -9,8 +9,8 @@ from securerag.config import DEFENSES
 
 API = os.environ.get("SECURERAG_API_URL", "http://localhost:8000")
 EXAMPLES = [
-    "What is the capital of Ghana?",
-    "Who was the first President of Ghana?",
+    "What is the capital of the Upper East Region?",
+    "What is the main ingredient of Aprapransa?",
     "What is the Ghana Card ID of Ama Mensah, who has an NHIS claim review case?",
 ]
 
@@ -23,6 +23,12 @@ def call(path: str, payload: dict | None = None):
     )
     r.raise_for_status()
     return r.json()
+
+
+def _limit_message(e: httpx.HTTPStatusError) -> str:
+    if e.response.status_code == 429:
+        return "Today's live-question limit is used up. Try the Recorded runs page instead."
+    return f"API error: {e}"
 
 
 def show(trace: dict) -> None:
@@ -43,7 +49,11 @@ def show(trace: dict) -> None:
             st.write(c["text"])
 
 
-st.title("Playground")
+st.title("Live playground")
+st.caption(
+    "Runs the real pipeline on a free API key, so live questions are capped per day. "
+    "The Recorded runs page shows every stored result without any limit."
+)
 defenses = st.multiselect("Defenses", DEFENSES)
 tab_q, tab_a = st.tabs(["Ask a question", "Replay an attack"])
 with tab_q:
@@ -52,6 +62,8 @@ with tab_q:
     if st.button("Ask") and question:
         try:
             show(call("/ask", {"question": question, "defenses": defenses}))
+        except httpx.HTTPStatusError as e:
+            st.error(_limit_message(e))
         except httpx.HTTPError as e:
             st.error(f"API error: {e}")
 with tab_a:
@@ -66,5 +78,7 @@ with tab_a:
     if st.button("Run attack") and pick:
         try:
             show(call("/attack", {"attack_id": pick["id"], "defenses": defenses}))
+        except httpx.HTTPStatusError as e:
+            st.error(_limit_message(e))
         except httpx.HTTPError as e:
             st.error(f"API error: {e}")

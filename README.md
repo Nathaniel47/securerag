@@ -1,3 +1,13 @@
+---
+title: SecureRAG
+emoji: 🛡️
+colorFrom: blue
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # SecureRAG: RAG Security Testbed
 
 A RAG assistant over public Ghana-related Wikipedia articles, plus a harness that attacks it (knowledge-base poisoning, indirect and direct prompt injection, data leakage), applies four defenses, and scores each defense automatically.
