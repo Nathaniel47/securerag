@@ -14,7 +14,7 @@ pinned: false
 
 A small question-answering assistant over about 400 Ghana-related Wikipedia articles, plus a test harness that attacks it four ways (knowledge-base poisoning, indirect and direct prompt injection, data leakage), applies five defenses, and scores every result automatically, with no LLM judge.
 
-**Demo:** _link goes here after the Hugging Face Space is live (see [DEPLOY.md](DEPLOY.md))._
+**Demo:** [https://huggingface.co/spaces/NathanielAAidoo/securerag](https://huggingface.co/spaces/NathanielAAidoo/securerag) (free tier: it sleeps when idle and takes about a minute to wake; live questions are capped per day, and the Recorded runs tab never uses the cap). Deployment steps are in [DEPLOY.md](DEPLOY.md).
 **Screen recording:** _GIF placeholder: add `docs/demo.gif` of the Recorded runs page._
 
 ## Headline result

@@ -36,11 +36,13 @@ Replace `YOUR_USER` with your Hugging Face username. When Git asks for a passwor
 git remote add space https://huggingface.co/spaces/YOUR_USER/securerag
 ```
 
+Hugging Face rejects plain binary files, so push the one-commit `space-deploy` branch (see the section below on how it is made):
+
 ```bash
-git push space main
+git push space space-deploy:main --force
 ```
 
-If Spaces rejects the push because it already created a starter README, use `git push space main --force`. This changes only the Space, not your GitHub repo.
+`--force` is needed because the new Space already holds a starter commit. It changes only the Space, not your GitHub repo.
 
 ## 5. Wait for the build
 
@@ -55,9 +57,26 @@ The first build takes about 5 to 10 minutes (it installs the embedding model dep
 
 Then send the Space URL to Claude so it can be added to `README.md` and `PORTFOLIO.md`.
 
+## Binary files and the `space-deploy` branch
+
+Hugging Face rejects plain binary files, so the Space gets a one-commit branch where `data/embeddings.npz` and the chart PNGs are stored with Git LFS. To refresh it after changes on `main`:
+
+```bash
+git branch -D space-deploy
+git checkout --orphan space-deploy
+printf '*.npz filter=lfs diff=lfs merge=lfs -text
+*.png filter=lfs diff=lfs merge=lfs -text
+' >> .gitattributes
+git rm --cached data/embeddings.npz results/chart_attack_success.png results/chart_cost.png results/chart_tradeoff.png
+git add .gitattributes data/embeddings.npz results/chart_*.png
+git commit -m "SecureRAG demo for Hugging Face Spaces"
+git push space space-deploy:main --force
+git checkout main
+```
+
 ## 7. Updating later
 
-Make changes, commit, then `git push space main`. The Space rebuilds. Push to GitHub too (`git push`) so both stay in step.
+Commit on `main`, push to GitHub (`git push`), then rebuild and push the `space-deploy` branch as shown above. The Space rebuilds. (Pushing `main` straight to the Space is rejected because of the binary files.)
 
 ## Notes
 
