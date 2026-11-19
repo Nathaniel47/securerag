@@ -109,3 +109,10 @@ Each defense is a class in `defenses/` that overrides only the hooks it needs (`
 - **Keys.** The Groq key lives only in the Space secret `SECURERAG_GROQ_API_KEY`. Nothing in the image or the repo contains it, and the pre-commit gitleaks hook still guards commits.
 - **A bug the browser check caught.** Streamlit puts the `ui/` folder, not the project folder, on the import path, so every page failed with "No module named ui". Tests did not catch it because pytest runs from the project root. The fix is setting `PYTHONPATH` in the Dockerfile and `start.sh`.
 - **Licence note.** `data/chunks.jsonl` is Wikipedia text (CC BY-SA 4.0), now tracked so the demo works. Attribution comes from `data/manifest.jsonl`, and README.md must credit it (Step 8).
+
+## Step 8: README, portfolio card and write-up
+
+- **README.md** is the front page for a stranger: what it is, the headline result, an architecture diagram, how to run it, and the limits. The results table repeats numbers from `results/results_table.md`; if the results are rerun, update both.
+- **docs/writeup.md** is the 2 to 4 page technical story: problem, method, results, limits, lessons. It states the weak points before a reader finds them (small attack sets, attacks that the defenses were tuned against, questions only partly human-checked), because an honest write-up is more convincing to a researcher than a perfect-looking one.
+- **PORTFOLIO.md** has the 116-word website card and one sentence to adapt when emailing researchers. The sentence leads with the finding that links to their work: a trust label (here "official page") was itself the thing the attacker used, the same trust-boundary problem as untrusted text written into an agent's memory.
+- **Still to add by hand:** the live demo link (after the Hugging Face Space is running) in README.md and PORTFOLIO.md, and an optional `docs/demo.gif`.
