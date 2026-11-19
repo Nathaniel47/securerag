@@ -26,9 +26,9 @@ def gemini_backend(
         seed=seed,
         max_output_tokens=settings.get("max_completion_tokens"),
     )
-    resp = genai.Client(api_key=key).models.generate_content(
-        model=model, contents=user, config=config
-    )
+    # Keep a reference: a temporary client is garbage-collected (and closed) mid-request.
+    client = genai.Client(api_key=key)
+    resp = client.models.generate_content(model=model, contents=user, config=config)
     used = resp.usage_metadata.total_token_count if resp.usage_metadata else 0
     return resp.text or "", used
 
