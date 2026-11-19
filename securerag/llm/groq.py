@@ -1,5 +1,6 @@
 """Groq backend. The SDK is imported lazily so tests and CI do not need it."""
 
+import os
 import time
 
 from securerag.config import RATE_LIMITS, Config, groq_api_key
@@ -27,7 +28,9 @@ def groq_backend(
         resp = client.chat.completions.create(model=model, messages=messages, **kwargs)
         return resp.choices[0].message.content or "", resp.usage.total_tokens
 
-    return call_with_retries(call, (RateLimitError, APIConnectionError))
+    # The public demo sets a small value so a visitor is not left waiting through long backoffs.
+    attempts = int(os.environ.get("SECURERAG_GROQ_ATTEMPTS", "8"))
+    return call_with_retries(call, (RateLimitError, APIConnectionError), attempts=attempts)
 
 
 def call_with_retries(call, retryable: tuple, attempts: int = 8, sleep=time.sleep):

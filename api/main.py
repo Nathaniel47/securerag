@@ -111,7 +111,10 @@ def create_app(
     def ask(req: AskRequest) -> dict:
         pipe = pipeline(req.defenses)
         spend()
-        return keep(pipe.ask(req.question))
+        try:
+            return keep(pipe.ask(req.question))
+        except RuntimeError as e:
+            raise HTTPException(503, f"The model service is busy; try again shortly. ({e})") from e
 
     @app.post("/attack")
     def attack(req: AttackRequest) -> dict:
@@ -119,7 +122,10 @@ def create_app(
             raise HTTPException(404, "unknown attack")
         pipe = pipeline(req.defenses)
         spend()
-        trace, ok = run_attack(pipe, by_id[req.attack_id])
+        try:
+            trace, ok = run_attack(pipe, by_id[req.attack_id])
+        except RuntimeError as e:
+            raise HTTPException(503, f"The model service is busy; try again shortly. ({e})") from e
         return keep(trace, {"attack_id": req.attack_id, "attack_succeeded": ok})
 
     @app.get("/trace/{trace_id}")

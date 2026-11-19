@@ -126,3 +126,32 @@ def test_recorded_runs_page_renders_without_errors():
     app = AppTest.from_file(str(Path("ui/recorded.py").resolve()), default_timeout=30).run()
     assert not app.exception
     assert app.dataframe
+
+
+def test_model_failure_returns_busy_503_not_a_hang(tmp_path):
+    store = VectorStore(HashEmbedder())
+    store.add([chunk("a#0", "Accra is the capital city of Ghana.")])
+
+    def backend(model, messages, temperature, seed, settings):
+        raise RuntimeError("Groq not reachable or rate limit not clearing; resume later")
+
+    llm = LLMClient(backend, "fake", 0.3, 42, cache=ResponseCache(tmp_path / "c"))
+    c = TestClient(create_app(store, llm, None, [], tmp_path / "none.jsonl", 50))
+    r = c.post("/ask", json={"question": "What is the capital city of Ghana?"})
+    assert r.status_code == 503 and "busy" in r.json()["detail"]
+
+
+def test_groq_attempts_come_from_the_environment(monkeypatch):
+    from securerag.llm import groq
+
+    calls = []
+
+    def fake(call, retryable, attempts=8, sleep=None):
+        calls.append(attempts)
+        return "ok", 1
+
+    monkeypatch.setattr(groq, "call_with_retries", fake)
+    monkeypatch.setenv("SECURERAG_GROQ_ATTEMPTS", "2")
+    monkeypatch.setenv("SECURERAG_GROQ_API_KEY", "test")
+    groq.groq_backend("m", [{"role": "user", "content": "x"}], 0.3, 1, {})
+    assert calls == [2]

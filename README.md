@@ -3,8 +3,10 @@ title: SecureRAG
 emoji: 🛡️
 colorFrom: blue
 colorTo: gray
-sdk: docker
-app_port: 7860
+sdk: gradio
+sdk_version: 6.32.0
+python_version: "3.11"
+app_file: app.py
 pinned: false
 ---
 
@@ -80,14 +82,13 @@ pre-commit install                  # enables gitleaks + ruff on every commit
 pytest
 ```
 
-Start the app (API and UI):
+Start the demo (the same Gradio app that runs on Hugging Face):
 
 ```powershell
-uvicorn api.app:app --port 8000     # terminal 1
-streamlit run ui/app.py             # terminal 2
+python app.py                       # http://localhost:7860
 ```
 
-or `docker compose up --build` (UI on http://localhost:8501). To deploy the public demo, follow [DEPLOY.md](DEPLOY.md).
+or the Streamlit version with a separate API (`uvicorn api.app:app --port 8000` and `streamlit run ui/app.py`), or `docker compose up --build` (UI on http://localhost:8501). To deploy the public demo, follow [DEPLOY.md](DEPLOY.md).
 
 Reproduce the results (needs `SECURERAG_GROQ_API_KEY`; the free daily limit means a full run spans several days and resumes from its cache; exit code 75 means "paused for today's budget"):
 
